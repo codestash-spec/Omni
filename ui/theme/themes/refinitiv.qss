@@ -1,0 +1,128 @@
+QMainWindow {
+    background: #0E0E0E;
+}
+
+QWidget {
+    background: #0E0E0E;
+    color: #E0E0E0;
+    font-family: "Segoe UI", "Source Sans Pro", "Helvetica Neue", sans-serif;
+    selection-background-color: #1E1E26;
+    selection-color: #E0E0E0;
+}
+
+QDockWidget {
+    titlebar-close-icon: url(none);
+    titlebar-normal-icon: url(none);
+    font-size: 12px;
+    background: #151515;
+    border: 1px solid #242424;
+}
+
+QDockWidget::title {
+    padding: 6px 8px;
+    background: #151515;
+    border-bottom: 1px solid #242424;
+    color: #E0E0E0;
+}
+
+QTabBar::tab {
+    background: #151515;
+    color: #A0A0A0;
+    padding: 6px 10px;
+    border: 1px solid #242424;
+}
+
+QTabBar::tab:selected {
+    color: #E0E0E0;
+    border-bottom: 2px solid #4DA3FF;
+}
+
+QTabWidget::pane {
+    border: 1px solid #242424;
+    background: #151515;
+}
+
+QComboBox, QLineEdit {
+    background: #1C1C1C;
+    border: 1px solid #242424;
+    padding: 4px 6px;
+    color: #E0E0E0;
+    border-radius: 4px;
+}
+
+QPushButton {
+    background: #1C1C1C;
+    border: 1px solid #242424;
+    padding: 6px 10px;
+    color: #E0E0E0;
+    border-radius: 4px;
+}
+
+QPushButton:hover {
+    border: 1px solid #4DA3FF;
+}
+
+QPushButton:checked {
+    background: #4DA3FF;
+    color: #0E0E0E;
+}
+
+QToolButton {
+    background: transparent;
+    color: #E0E0E0;
+}
+
+QHeaderView::section {
+    background: #151515;
+    color: #A0A0A0;
+    padding: 6px 4px;
+    border: 1px solid #242424;
+}
+
+QTableWidget, QTreeWidget, QListWidget {
+    background: #0E0E0E;
+    alternate-background-color: #151515;
+    gridline-color: #242424;
+    selection-background-color: #1E1E26;
+    selection-color: #E0E0E0;
+    font-family: "JetBrains Mono", "IBM Plex Mono", "Consolas", monospace;
+}
+
+QTableWidget::item, QTreeWidget::item, QListWidget::item {
+    padding: 4px;
+}
+
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: #151515;
+    border: 1px solid #242424;
+    margin: 2px;
+}
+
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+    background: #2B2B2B;
+    border-radius: 4px;
+}
+
+QProgressBar {
+    background: #1C1C1C;
+    border: 1px solid #242424;
+    border-radius: 4px;
+    text-align: center;
+    color: #E0E0E0;
+}
+
+QProgressBar::chunk {
+    background-color: #2ECC71;
+    width: 10px;
+    margin: 1px;
+}
+
+QStatusBar {
+    background: #151515;
+    border-top: 1px solid #242424;
+}
+
+QGraphicsView {
+    background: #0E0E0E;
+    border: 1px solid #242424;
+}

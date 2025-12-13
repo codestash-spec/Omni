@@ -1,0 +1,164 @@
+{
+  "checks": {
+    "missing": [],
+    "hidden_or_no_area": [],
+    "tiny": []
+  },
+  "docks": {
+    "dock_strategy_signals": {
+      "key": "strategy_signals",
+      "title": "Strategy Signals",
+      "visible": true,
+      "floating": false,
+      "area": 1,
+      "tabbed_with": [],
+      "geom": [
+        0,
+        392,
+        934,
+        147
+      ]
+    },
+    "dock_price_chart": {
+      "key": "price_chart",
+      "title": "Price Chart",
+      "visible": true,
+      "floating": false,
+      "area": 1,
+      "tabbed_with": [],
+      "geom": [
+        467,
+        38,
+        855,
+        667
+      ]
+    },
+    "dock_dom_ladder": {
+      "key": "dom_ladder",
+      "title": "DOM Ladder",
+      "visible": true,
+      "floating": false,
+      "area": 1,
+      "tabbed_with": [],
+      "geom": [
+        -656,
+        -587,
+        156,
+        87
+      ]
+    },
+    "dock_marketwatch": {
+      "key": "marketwatch",
+      "title": "MarketWatch",
+      "visible": true,
+      "floating": false,
+      "area": 1,
+      "tabbed_with": [],
+      "geom": [
+        0,
+        38,
+        461,
+        129
+      ]
+    },
+    "dock_positions": {
+      "key": "positions",
+      "title": "Positions / Orders",
+      "visible": true,
+      "floating": false,
+      "area": 1,
+      "tabbed_with": [],
+      "geom": [
+        0,
+        173,
+        780,
+        112
+      ]
+    },
+    "dock_news": {
+      "key": "news",
+      "title": "News Feed",
+      "visible": true,
+      "floating": false,
+      "area": 1,
+      "tabbed_with": [],
+      "geom": [
+        0,
+        291,
+        461,
+        95
+      ]
+    },
+    "dock_liquidity_heatmap": {
+      "key": "liquidity_heatmap",
+      "title": "Liquidity Heatmap",
+      "visible": true,
+      "floating": false,
+      "area": 1,
+      "tabbed_with": [],
+      "geom": [
+        0,
+        723,
+        461,
+        155
+      ]
+    },
+    "dock_microstructure": {
+      "key": "microstructure",
+      "title": "Microstructure",
+      "visible": true,
+      "floating": false,
+      "area": 1,
+      "tabbed_with": [],
+      "geom": [
+        467,
+        711,
+        460,
+        167
+      ]
+    },
+    "dock_time_sales": {
+      "key": "time_sales",
+      "title": "Tape Reading",
+      "visible": true,
+      "floating": false,
+      "area": 1,
+      "tabbed_with": [],
+      "geom": [
+        0,
+        545,
+        461,
+        172
+      ]
+    },
+    "dock_footprint": {
+      "key": "footprint",
+      "title": "Footprint Cluster",
+      "visible": true,
+      "floating": false,
+      "area": 1,
+      "tabbed_with": [],
+      "geom": [
+        933,
+        38,
+        590,
+        840
+      ]
+    },
+    "dock_volume_profile": {
+      "key": "volume_profile",
+      "title": "Volume Profile",
+      "visible": true,
+      "floating": false,
+      "area": 1,
+      "tabbed_with": [],
+      "geom": [
+        -1240,
+        -587,
+        740,
+        87
+      ]
+    }
+  },
+  "passed": true
+}

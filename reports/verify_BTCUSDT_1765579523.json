@@ -1,0 +1,25 @@
+{
+  "symbol": "BTCUSDT",
+  "timeframe": "1m",
+  "verdict": "FAIL",
+  "components": [
+    {
+      "marketwatch": {
+        "passed": true,
+        "details": {
+          "app": {
+            "last": 90324.34,
+            "pct": -2.2,
+            "vol": 17429.21344
+          },
+          "rest": {
+            "last": 90324.33,
+            "pct": -2.2,
+            "vol": 17429.19555
+          },
+          "diff": {
+            "price_rel": 1.1071214139934733e-07,
+            "pct_rel": 0.0,
+            "vol_rel": 1.0264386527678816e-06
+          },
+          "tolerance": 
