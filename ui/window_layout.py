@@ -2,80 +2,76 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDockWidget, QWidget
 
 
-def create_dock(
-    window,
-    widget: QWidget,
-    title: str,
-    object_name: str,
-    area: Qt.DockWidgetArea = Qt.LeftDockWidgetArea,
-) -> QDockWidget:
+def create_dock(window, widget: QWidget, title: str, object_name: str) -> QDockWidget:
     dock = QDockWidget(title, window)
     dock.setObjectName(object_name)
     dock.setWidget(widget)
     dock.setAllowedAreas(Qt.AllDockWidgetAreas)
     dock.setFeatures(
-        QDockWidget.DockWidgetMovable
-        | QDockWidget.DockWidgetClosable
-        | QDockWidget.DockWidgetFloatable
+        QDockWidget.DockWidgetMovable |
+        QDockWidget.DockWidgetClosable |
+        QDockWidget.DockWidgetFloatable
     )
-    window.addDockWidget(area, dock)
     return dock
 
 
-def apply_default_layout(window, docks):
-    """
-    Simplified default layout: just add all docks without complex splits.
-    User can arrange them as needed via drag/drop.
-    """
-    import logging
-    logger = logging.getLogger(__name__)
+def apply_default_layout(main, docks):
+    main.setUpdatesEnabled(False)
     
-    try:
-        logger.info("  Applying simplified layout (no splits)...")
-        
-        # Simply add all docks to their designated areas without splitting
-        # This avoids the splitDockWidget crashes
-        
-        docks["strategy_signals"].setFloating(False)
-        window.addDockWidget(Qt.LeftDockWidgetArea, docks["strategy_signals"])
-        
-        docks["price_chart"].setFloating(False)
-        window.addDockWidget(Qt.TopDockWidgetArea, docks["price_chart"])
-        
-        docks["dom_ladder"].setFloating(False)
-        window.addDockWidget(Qt.RightDockWidgetArea, docks["dom_ladder"])
-        
-        docks["marketwatch"].setFloating(False)
-        window.addDockWidget(Qt.LeftDockWidgetArea, docks["marketwatch"])
-        
-        docks["positions"].setFloating(False)
-        window.addDockWidget(Qt.LeftDockWidgetArea, docks["positions"])
-        
-        docks["news"].setFloating(False)
-        window.addDockWidget(Qt.LeftDockWidgetArea, docks["news"])
-        
-        docks["liquidity_heatmap"].setFloating(False)
-        window.addDockWidget(Qt.BottomDockWidgetArea, docks["liquidity_heatmap"])
-        
-        docks["microstructure"].setFloating(False)
-        window.addDockWidget(Qt.BottomDockWidgetArea, docks["microstructure"])
-        
-        docks["time_sales"].setFloating(False)
-        window.addDockWidget(Qt.BottomDockWidgetArea, docks["time_sales"])
-        
-        docks["footprint"].setFloating(False)
-        window.addDockWidget(Qt.RightDockWidgetArea, docks["footprint"])
-        
-        docks["volume_profile"].setFloating(False)
-        window.addDockWidget(Qt.RightDockWidgetArea, docks["volume_profile"])
-        
-        # Show all docks by default
-        for dock in docks.values():
-            dock.show()
-            dock.raise_()
-        
-        logger.info("✓ Layout applied successfully")
-        
-    except Exception as e:
-        logger.error("CRITICAL: apply_default_layout failed: %s", e, exc_info=True)
-        raise
+    # 🔥 ADICIONAR ESTAS LINHAS ANTES DE TUDO
+    for dock in docks.values():
+        dock.setFloating(False)  # Garantir que não está flutuando
+        dock.hide()  # Esconder antes de remover
+        try:
+            main.removeDockWidget(dock)
+        except:
+            pass
+    
+    # ===============================
+    # 1️⃣ CRIAR 3 ÂNCORAS INDEPENDENTES
+    # ===============================
+    # Coluna Esquerda
+    main.addDockWidget(Qt.LeftDockWidgetArea, docks["marketwatch"])
+    
+    # Coluna Central - usar Bottom como âncora temporária
+    main.addDockWidget(Qt.BottomDockWidgetArea, docks["price_chart"])
+    
+    # Coluna Direita
+    main.addDockWidget(Qt.RightDockWidgetArea, docks["time_sales"])
+
+    # ===============================
+    # 2️⃣ REPOSICIONAR COLUNA CENTRAL
+    # ===============================
+    main.splitDockWidget(docks["marketwatch"], docks["price_chart"], Qt.Horizontal)
+    main.splitDockWidget(docks["price_chart"], docks["time_sales"], Qt.Horizontal)
+
+    # ===============================
+    # 3️⃣ EMPILHAR VERTICALMENTE - COLUNA ESQUERDA
+    # ===============================
+    main.tabifyDockWidget(docks["marketwatch"], docks["positions_panel"])
+    main.tabifyDockWidget(docks["positions_panel"], docks["news_panel"])
+
+    # ===============================
+    # 4️⃣ EMPILHAR VERTICALMENTE - COLUNA CENTRAL
+    # ===============================
+    main.tabifyDockWidget(docks["price_chart"], docks["microstructure_panel"])
+    main.tabifyDockWidget(docks["microstructure_panel"], docks["heatmap_panel"])
+
+    # ===============================
+    # 5️⃣ EMPILHAR VERTICALMENTE - COLUNA DIREITA
+    # ===============================
+    main.tabifyDockWidget(docks["time_sales"], docks["footprint"])
+    main.tabifyDockWidget(docks["footprint"], docks["dom_ladder"])
+    main.tabifyDockWidget(docks["dom_ladder"], docks["volume_profile"])
+
+    # ===============================
+    # 6️⃣ MOSTRAR OS DOCKS PRINCIPAIS
+    # ===============================
+    for dock in docks.values():
+        dock.show()
+
+    docks["marketwatch"].raise_()
+    docks["price_chart"].raise_()
+    docks["time_sales"].raise_()
+
+    main.setUpdatesEnabled(True)

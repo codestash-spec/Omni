@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 from ui.theme import colors, typography
 
 
-class TopBar(QWidget):
+class TopBar(QMenuBar):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("TopBar")

@@ -4,10 +4,9 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import sys
-
+from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QWidget, QVBoxLayout
 from PySide6.QtCore import QByteArray, QSettings, QStandardPaths, Qt, QtMsgType, qInstallMessageHandler, QTimer
 from PySide6.QtGui import QAction, QActionGroup
-from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QWidget
 
 from core.app_state import AppState
 from core.data_engine.core_engine import CoreDataEngine
@@ -37,7 +36,7 @@ class MainWindow(QMainWindow):
         self._logger = logging.getLogger(__name__)
         self._dock_debug = False
         self.setWindowTitle("OmniFlow Terminal")
-        self.setMinimumSize(1400, 900)
+
         self.setDockOptions(
             QMainWindow.AllowTabbedDocks
             | QMainWindow.AllowNestedDocks
@@ -59,45 +58,72 @@ class MainWindow(QMainWindow):
         self.layout_dir.mkdir(parents=True, exist_ok=True)
         self.default_layout_path = self.layout_dir / "default_layout.bin"
 
+        # Top bar (UI rica)
         self.topbar = TopBar(self)
-        self.setMenuWidget(self.topbar)
+
+        # Menu bar REAL (Qt)
+        self.setMenuBar(self.topbar.menu_bar)  # ✅
+
         self.status = StatusBar(self)
         self.setStatusBar(self.status)
 
-        self._central_placeholder = QWidget(self)
-        self.setCentralWidget(self._central_placeholder)
+        # Central widget com TopBar no topo
+        central = QWidget()
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.topbar)  # TopBar dentro do central widget
+        layout.addStretch()  # Resto do espaço vazio
+        self.setCentralWidget(central)
 
         # Panels
         chart_panel = ChartPanel(self)
         self.chart_panel = chart_panel
-        dom_panel = DomPanel(self)
-        self.dom_panel = dom_panel
+        
         footprint_panel = FootprintPanel(self)
+        self.footprint_panel = footprint_panel
+
         tape_panel = TapePanel(self)
         self.tape_panel = tape_panel
+
+        dom_ladder = DomPanel(self)
+        self.dom_ladder = dom_ladder
+
+
         heatmap_panel = HeatmapPanel(self)
+        self.heatmap_panel = heatmap_panel
+
         volume_profile_panel = VolumeProfilePanel(self)
         self.volume_profile_panel = volume_profile_panel
+
         microstructure_panel = MicrostructurePanel(self)
+        self.microstructure_panel = microstructure_panel
+
         strategy_panel = StrategySignalsPanel(self)
+        self.strategy_panel = strategy_panel
+        
         market_panel = MarketWatchPanel(self)
+        
         news_panel = NewsPanel(self)
+        self.news_panel = news_panel
+        
         positions_panel = PositionsPanel(self)
+        self.positions_panel = positions_panel
 
         # Docks
         self.docks = {
-            "strategy_signals": create_dock(self, strategy_panel, "Strategy Signals", "dock_strategy_signals", Qt.LeftDockWidgetArea),
-            "price_chart": create_dock(self, chart_panel, "Price Chart", "dock_price_chart", Qt.TopDockWidgetArea),
-            "dom_ladder": create_dock(self, dom_panel, "DOM Ladder", "dock_dom_ladder", Qt.RightDockWidgetArea),
-            "marketwatch": create_dock(self, market_panel, "MarketWatch", "dock_marketwatch", Qt.LeftDockWidgetArea),
-            "positions": create_dock(self, positions_panel, "Positions / Orders", "dock_positions", Qt.LeftDockWidgetArea),
-            "news": create_dock(self, news_panel, "News Feed", "dock_news", Qt.LeftDockWidgetArea),
-            "liquidity_heatmap": create_dock(self, heatmap_panel, "Liquidity Heatmap", "dock_liquidity_heatmap", Qt.BottomDockWidgetArea),
-            "microstructure": create_dock(self, microstructure_panel, "Microstructure", "dock_microstructure", Qt.BottomDockWidgetArea),
-            "time_sales": create_dock(self, tape_panel, "Tape Reading", "dock_time_sales", Qt.BottomDockWidgetArea),
-            "footprint": create_dock(self, footprint_panel, "Footprint Cluster", "dock_footprint", Qt.RightDockWidgetArea),
-            "volume_profile": create_dock(self, volume_profile_panel, "Volume Profile", "dock_volume_profile", Qt.RightDockWidgetArea),
+            "price_chart": create_dock(self, chart_panel, "Price Chart", "dock_price_chart"),
+            "marketwatch": create_dock(self, market_panel, "MarketWatch", "dock_marketwatch"),
+            "footprint": create_dock(self, footprint_panel, "Footprint", "dock_footprint"),
+            "dom_ladder": create_dock(self, dom_ladder, "DOM Ladder", "dock_dom_ladder"),
+            "volume_profile": create_dock(self, volume_profile_panel, "Volume Profile", "dock_volume_profile"),
+            "time_sales": create_dock(self, tape_panel, "Tape Reading", "dock_time_sales"),
+            "positions_panel": create_dock(self, positions_panel, "Positions", "dock_positions"),
+            "heatmap_panel": create_dock(self, heatmap_panel, "Heat Map", "dock_heatmap_panel"),
+            "microstructure_panel": create_dock(self, microstructure_panel, "Micro Structure", "dock_microstructure_panel"),  # ✅ CORRIGIDO
+            "news_panel": create_dock(self, news_panel, "News", "dock_news_panel"),
         }
+
         self._wire_dock_debug()
 
         # Data wiring: MarketWatch from ticker bus; chart/tape via DataEngine
@@ -134,11 +160,7 @@ class MainWindow(QMainWindow):
         self._wire_theme_menu()
         self._wire_file_menu()
         self._wire_tools_menu()
-        if not os.environ.get("OMNIFLOW_RESET_LAYOUT"):
-            self.apply_startup_layout()
-        else:
-            # layout limpo e visível
-            self.apply_default_layout_all_views(save_as_default=True)
+
 
         # Allow disabling network/providers during local debugging/tests by setting
         # OMNIFLOW_DISABLE_PROVIDER=1 in the environment. This avoids provider
@@ -147,6 +169,21 @@ class MainWindow(QMainWindow):
 
         if not os.environ.get("OMNIFLOW_DISABLE_PROVIDER"):
             QTimer.singleShot(0, self.data_engine.start)
+
+
+    
+    def showEvent(self, event):
+        super().showEvent(event)
+
+        # Aplicar layout APENAS depois da janela existir
+        QTimer.singleShot(0, self._apply_layout_on_show)
+
+    
+    def _apply_layout_on_show(self):
+        if not os.environ.get("OMNIFLOW_RESET_LAYOUT"):
+            self.apply_startup_layout()
+        else:
+            self.apply_default_layout_all_views(save_as_default=False)
 
 
     def _on_depth_snapshot(self, evt):
@@ -215,29 +252,36 @@ class MainWindow(QMainWindow):
     def _apply_and_store_default(self):
         self.apply_default_layout_all_views(save_as_default=True)
 
-    def apply_default_layout_all_views(self, save_as_default: bool = False, show_all: bool = False):
-        # Rebuild the docking graph from scratch to avoid inheriting corrupted positions
+    def apply_default_layout_all_views(self, save_as_default=False, show_all=False):
         self.setUpdatesEnabled(False)
+
+        # ❌ NÃO FAÇA ISTO: self.setCentralWidget(None)
+        
+        # ✅ Em vez disso, apenas remova os docks
         for dock in self.docks.values():
             dock.setFloating(False)
             try:
                 self.removeDockWidget(dock)
             except Exception:
                 pass
+
         apply_default_layout(self, self.docks)
-        # Show all views by default so user can reorganize immediately
-        for key, dock in self.docks.items():
-            dock.setVisible(True)
+
+        for dock in self.docks.values():
             dock.show()
             dock.raise_()
+
         QApplication.processEvents()
+
         geom = self.saveGeometry()
         st = self.saveState()
+
         if save_as_default:
             self._persist_default_layout(geom, st)
+
         self._remember_active_layout(geom, st)
         self.setUpdatesEnabled(True)
-        self._sync_view_actions()
+
 
     def _remember_active_layout(self, geometry: QByteArray, state: QByteArray):
         self.settings.setValue("geometry", geometry)
