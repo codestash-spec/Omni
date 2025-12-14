@@ -18,7 +18,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QTimer, Qt
 
 from core.data_engine.events import TradeEvent, CandleHistory, CandleUpdate, TimeframeChanged, SymbolChanged
-from data_engine.models import Trade, Candle
+from core.data_engine.models import Trade, Candle
+
 from ui.theme import colors, typography
 
 

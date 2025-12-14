@@ -17,7 +17,8 @@ from PySide6.QtWidgets import (
 )
 
 from core.data_engine.events import TradeEvent, CandleHistory, CandleUpdate, TimeframeChanged, SymbolChanged
-from data_engine.models import Trade
+from core.data_engine.models import Trade
+
 from ui.theme import colors, typography
 
 

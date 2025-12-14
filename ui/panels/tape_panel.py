@@ -17,7 +17,8 @@ from PySide6.QtWidgets import (
 )
 
 from ui.theme import colors, typography
-from data_engine.models import Trade
+from core.data_engine.models import Trade
+
 
 
 class TapePanel(QWidget):

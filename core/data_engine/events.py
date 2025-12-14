@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from typing import List, Tuple
 
-from data_engine.models import Candle, Trade, OrderBookSnapshot
+from core.data_engine.models import Candle, Trade, OrderBookSnapshot
+
 
 
 @dataclass

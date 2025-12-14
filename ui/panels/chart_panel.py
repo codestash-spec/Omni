@@ -11,8 +11,9 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QSpinBox, QTabBar, QVBoxLayout, QWidget
 
 from core.chart_engine import ChartEngine
-from data_engine.models import Candle
-from data_engine.utils import clamp_prices
+from core.data_engine.models import Candle
+from core.data_engine.utils import clamp_prices
+
 from ui.theme import colors, typography
 
 

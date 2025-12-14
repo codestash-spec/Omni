@@ -1,7 +1,8 @@
 import random
 
+
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QActionGroup
+from PySide6.QtGui import QFont, QAction
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
@@ -77,10 +78,11 @@ class TopBar(QWidget):
     def _build_menus(self):
         file_menu = self.menu_bar.addMenu("File")
         self.file_actions = {
-            "new_workspace": file_menu.addAction("New Workspace"),
-            "open_workspace": file_menu.addAction("Open Workspace"),
-            "save_workspace": file_menu.addAction("Save Workspace"),
-            "save_workspace_as": file_menu.addAction("Save Workspace As"),
+            "new_workspace": QAction("New Workspace", self),
+            "open_workspace": QAction("Open Workspace", self),
+            "save_workspace": QAction("Save Workspace", self),
+            "save_workspace_as": QAction("Save Workspace As…", self),
+            "exit": QAction("Exit", self),
         }
         file_menu.addSeparator()
         self.file_actions["exit"] = file_menu.addAction("Exit")

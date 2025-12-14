@@ -29,7 +29,8 @@ from core.data_engine.events import (
     TradeEvent,
     TickersEvent,
 )
-from data_engine.models import TickerData, Candle, Trade
+from core.data_engine.models import TickerData, Candle, Trade
+
 
 
 DEFAULT_SECONDS = 90

@@ -6,7 +6,8 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 
 from core.app_state import AppState
-from data_engine.models import TickerData
+from core.data_engine.models import Trade
+
 from ui.theme import colors, typography
 
 

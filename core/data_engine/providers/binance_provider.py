@@ -10,7 +10,8 @@ import aiohttp
 import websockets
 from websockets.exceptions import ConnectionClosed
 
-from data_engine.models import TickerData, Candle, Trade
+from core.data_engine.models import TickerData, Candle, Trade
+
 from core.data_engine.events import DepthSnapshotEvent, DepthUpdateEvent
 
 

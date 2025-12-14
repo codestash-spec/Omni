@@ -18,7 +18,10 @@ from core.data_engine.events import (
 from core.data_engine.symbol_state import SymbolState
 from core.data_engine.timeframe_state import TimeframeState
 from core.data_engine.providers.binance_provider import BinanceProvider
-from data_engine.models import Candle, Trade
+from core.data_engine.models import Candle, Trade
+
+
+
 
 
 class CoreDataEngine(QObject):

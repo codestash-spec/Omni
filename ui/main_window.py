@@ -5,7 +5,7 @@ from pathlib import Path
 
 import sys
 
-from PySide6.QtCore import QByteArray, QSettings, QStandardPaths, Qt, QtMsgType, qInstallMessageHandler
+from PySide6.QtCore import QByteArray, QSettings, QStandardPaths, Qt, QtMsgType, qInstallMessageHandler, QTimer
 from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QWidget
 
@@ -134,12 +134,20 @@ class MainWindow(QMainWindow):
         self._wire_theme_menu()
         self._wire_file_menu()
         self._wire_tools_menu()
-        self.apply_startup_layout()
+        if not os.environ.get("OMNIFLOW_RESET_LAYOUT"):
+            self.apply_startup_layout()
+        else:
+            # layout limpo e visível
+            self.apply_default_layout_all_views(save_as_default=True)
+
         # Allow disabling network/providers during local debugging/tests by setting
         # OMNIFLOW_DISABLE_PROVIDER=1 in the environment. This avoids provider
         # threads or event-loops interfering with GUI visibility checks.
+
+
         if not os.environ.get("OMNIFLOW_DISABLE_PROVIDER"):
-            self.data_engine.start()
+            QTimer.singleShot(0, self.data_engine.start)
+
 
     def _on_depth_snapshot(self, evt):
         """Global depth snapshot handler for all panels."""
@@ -176,14 +184,10 @@ class MainWindow(QMainWindow):
         default_state = self.settings.value(default_state_key)
         stored_version = self.settings.value(version_key)
 
-        # If the stored version does not match, ignore any persisted layout (including defaults)
         if stored_version != self.layout_version:
             for k in (geom_key, state_key, default_geom_key, default_state_key):
                 self.settings.remove(k)
-            geometry = None
-            state = None
-            default_geometry = None
-            default_state = None
+            geometry = state = default_geometry = default_state = None
 
         layout_loaded = False
         if stored_version == self.layout_version and geometry and state:
@@ -192,21 +196,21 @@ class MainWindow(QMainWindow):
 
         if not layout_loaded:
             fallback_geometry, fallback_state = self._load_default_layout(default_geometry, default_state)
-            if fallback_state and self.restoreState(fallback_state):
+            if fallback_state:
+                self.restoreState(fallback_state)
                 if fallback_geometry:
                     self.restoreGeometry(fallback_geometry)
                 layout_loaded = True
 
-        if not layout_loaded:
+        if not layout_loaded or not self._is_layout_valid():
             self.apply_default_layout_all_views(save_as_default=True)
         else:
-            if not self._is_layout_valid():
-                self.apply_default_layout_all_views(save_as_default=True)
-            else:
-                self._remember_active_layout(self.saveGeometry(), self.saveState())
-                self.settings.setValue(version_key, self.layout_version)
+            self._remember_active_layout(self.saveGeometry(), self.saveState())
+            self.settings.setValue(version_key, self.layout_version)
+
         self._sync_theme_actions()
         self._sync_view_actions()
+
 
     def _apply_and_store_default(self):
         self.apply_default_layout_all_views(save_as_default=True)
@@ -344,16 +348,22 @@ class MainWindow(QMainWindow):
         actions = getattr(self.topbar, "file_actions", {})
         if not actions:
             return
+
         if actions.get("new_workspace"):
             actions["new_workspace"].triggered.connect(self.reset_layout)
+
         if actions.get("open_workspace"):
             actions["open_workspace"].triggered.connect(self.load_layout)
+
         if actions.get("save_workspace"):
             actions["save_workspace"].triggered.connect(self.save_layout_as_default)
+
         if actions.get("save_workspace_as"):
             actions["save_workspace_as"].triggered.connect(self.save_layout_as)
+
         if actions.get("exit"):
             actions["exit"].triggered.connect(self.close)
+
 
     def _wire_tools_menu(self):
         tools = getattr(self.topbar, "tools_actions", {})
@@ -548,13 +558,23 @@ class MainWindow(QMainWindow):
             action.blockSignals(previous)
 
     def closeEvent(self, event):
-        self._remember_active_layout(self.saveGeometry(), self.saveState())
+        # Sempre gravar o layout atual como default
+        geom = self.saveGeometry()
+        st = self.saveState()
+
+        self._persist_default_layout(geom, st)
+        self._remember_active_layout(geom, st)
+
+        # Stop engine cleanly
         self.data_engine.stop()
+
         super().closeEvent(event)
 
+
     def reset_layout(self):
-        # Always reapply authoritative default layout to avoid restoring corrupted states
-        self._apply_and_store_default()
+        self.apply_default_layout_all_views(save_as_default=True)
+        self.ensure_all_views_visible(force_unfloat=True)
+
 
     def save_layout_as_default(self):
         geom = self.saveGeometry()
@@ -562,6 +582,7 @@ class MainWindow(QMainWindow):
         self._persist_default_layout(geom, st)
         self._remember_active_layout(geom, st)
         self._logger.info("Workspace saved as default layout")
+
 
 
 _prev_qt_handler = None
@@ -603,8 +624,11 @@ def run():
     logger.info("OmniFlow Terminal Starting...")
     logger.info("=" * 80)
     
-    app = QApplication.instance() or QApplication([])
+    app = QApplication.instance() or QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(True)
+
     window = MainWindow()
     window.show()
-    window.resize(1400, 900)
-    app.exec()
+
+    sys.exit(app.exec())
+

@@ -16,7 +16,7 @@ def test_imports():
     """Test C1: Models consolidation"""
     logger.info("Testing C1: Models consolidation...")
     try:
-        from data_engine.models import TickerData, Candle, Trade
+        from core.data_engine.models import TickerData, Candle, Trade
         logger.info("  ✓ TickerData imported from data_engine.models")
         logger.info("  ✓ Candle imported from data_engine.models")
         logger.info("  ✓ Trade imported from data_engine.models")

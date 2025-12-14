@@ -1,7 +1,8 @@
 from collections import deque
 from typing import Deque, Dict, List, Tuple
 
-from data_engine.models import Candle, Trade
+from core.data_engine.models import Candle, Trade
+
 
 
 class CacheManager:
