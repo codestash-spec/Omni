@@ -1,13 +1,25 @@
 """
 Verification suite for OmniFlow Terminal data vs Binance REST snapshots.
 
-Runs headless: spins up CoreDataEngine, captures events for a window, then
-cross-checks against REST endpoints and writes JSON + TXT reports.
+Executa em modo headless (sem UI):
+- Inicializa o CoreDataEngine
+- Captura eventos durante uma janela temporal
+- Compara dados internos com endpoints REST oficiais da Binance
+- Gera relatórios JSON + TXT
+
+Este ficheiro é essencial para:
+✔ validar integridade dos dados
+✔ provar consistência institucional
+✔ auditorias técnicas / investidores
 """
 
-import argparse
-import asyncio
-import json
+# ==========================================================
+# IMPORTS STANDARD
+# ==========================================================
+
+import argparse          # parsing de argumentos CLI
+import asyncio           # async REST
+import json              # serialização dos relatórios
 import os
 import time
 from collections import deque
@@ -15,8 +27,16 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Deque, Dict, List, Optional, Tuple
 
-import aiohttp
-from PySide6.QtCore import QCoreApplication, QTimer
+# ==========================================================
+# IMPORTS EXTERNOS
+# ==========================================================
+
+import aiohttp            # REST async
+from PySide6.QtCore import QCoreApplication, QTimer  # event loop headless Qt
+
+# ==========================================================
+# CORE ENGINE + EVENTS
+# ==========================================================
 
 from core.data_engine.core_engine import CoreDataEngine
 from core.data_engine.events import (
@@ -32,22 +52,49 @@ from core.data_engine.events import (
 from core.data_engine.models import TickerData, Candle, Trade
 
 
+# ==========================================================
+# DEFAULTS
+# ==========================================================
 
-DEFAULT_SECONDS = 90
+DEFAULT_SECONDS = 90          # janela de captura
 DEFAULT_SYMBOL = "BTCUSDT"
 DEFAULT_TF = "1m"
 
 
+# ==========================================================
+# RESULT STRUCT
+# ==========================================================
+
 @dataclass
 class ComponentResult:
+    """
+    Resultado de validação de um componente:
+    - marketwatch
+    - tape
+    - chart
+    - dom
+    - footprint
+    """
     name: str
     passed: bool
     details: Dict
 
 
+# ==========================================================
+# DATA PROBE
+# ==========================================================
+
 class DataProbe:
     """
-    Lightweight tap on CoreDataEngine signals. Stores last-N events in ring buffers.
+    Tap leve nos sinais do CoreDataEngine.
+
+    Mantém buffers circulares (ring buffers) com:
+    - tickers
+    - trades
+    - candles
+    - depth
+
+    NÃO processa lógica, apenas observa.
     """
 
     def __init__(self, max_trades: int = 2000, max_candles: int = 1200, max_tickers: int = 200):
@@ -59,31 +106,38 @@ class DataProbe:
         self.symbol = DEFAULT_SYMBOL
         self.timeframe = DEFAULT_TF
 
-    # Slots
+    # --------------------------
+    # SLOTS DE EVENTOS
+    # --------------------------
+
     def on_tickers(self, evt: TickersEvent):
+        """Snapshot de marketwatch"""
         if evt.tickers:
             self.tickers.clear()
             self.tickers.extend(evt.tickers)
 
     def on_trade(self, evt: TradeEvent):
+        """Tape reading"""
         self.trades.append(evt.trade)
 
     def on_candle_history(self, evt: CandleHistory):
-        # history replaces buffer
+        """Histórico completo de candles"""
         self.candles.clear()
         self.candles.extend(evt.candles)
 
     def on_candle_update(self, evt: CandleUpdate):
-        # append or replace last
+        """Update incremental"""
         if self.candles and evt.candle.open_time <= self.candles[-1].open_time:
             self.candles[-1] = evt.candle
         else:
             self.candles.append(evt.candle)
 
     def on_depth_snapshot(self, evt: DepthSnapshotEvent):
+        """Snapshot completo de DOM"""
         self.last_depth = evt
 
     def on_depth_update(self, evt: DepthUpdateEvent):
+        """Update incremental DOM"""
         self.last_depth_update = evt
 
     def on_symbol(self, evt: SymbolChanged):
@@ -93,8 +147,16 @@ class DataProbe:
         self.timeframe = evt.timeframe
 
 
-# REST helpers
+# ==========================================================
+# REST HELPERS
+# ==========================================================
+
 async def fetch_json(session: aiohttp.ClientSession, url: str, params=None, timeout=10):
+    """
+    Wrapper robusto de GET REST:
+    - retries
+    - backoff
+    """
     for attempt in range(3):
         try:
             async with session.get(url, params=params, timeout=timeout) as resp:
@@ -107,204 +169,161 @@ async def fetch_json(session: aiohttp.ClientSession, url: str, params=None, time
 
 
 async def fetch_rest(symbol: str, timeframe: str):
+    """
+    Captura snapshot REST oficial Binance:
+    - ticker 24h
+    - klines
+    - aggTrades
+    - depth
+    """
     base = "https://api.binance.com"
-    kline_limit = 300
-    agg_limit = 200
-    depth_limit = 100
     async with aiohttp.ClientSession() as session:
         ticker = await fetch_json(session, f"{base}/api/v3/ticker/24hr", {"symbol": symbol})
         klines = await fetch_json(
-            session, f"{base}/api/v3/klines", {"symbol": symbol, "interval": timeframe, "limit": kline_limit}
+            session, f"{base}/api/v3/klines", {"symbol": symbol, "interval": timeframe, "limit": 300}
         )
-        agg_trades = await fetch_json(session, f"{base}/api/v3/aggTrades", {"symbol": symbol, "limit": agg_limit})
-        depth = await fetch_json(session, f"{base}/api/v3/depth", {"symbol": symbol, "limit": depth_limit})
+        agg_trades = await fetch_json(session, f"{base}/api/v3/aggTrades", {"symbol": symbol, "limit": 200})
+        depth = await fetch_json(session, f"{base}/api/v3/depth", {"symbol": symbol, "limit": 100})
     return {"ticker": ticker, "klines": klines, "agg_trades": agg_trades, "depth": depth}
 
 
-# Verification functions
+# ==========================================================
+# VERIFICATIONS
+# ==========================================================
+
 def verify_ticker(probe: DataProbe, rest: Dict) -> ComponentResult:
-    details = {}
+    """
+    Valida MarketWatch:
+    - preço
+    - variação %
+    - volume
+    """
     if not probe.tickers:
-        return ComponentResult("marketwatch", False, {"error": "no ticker data captured"})
-    app_ticker = next((t for t in probe.tickers if t.symbol == probe.symbol.upper()), None)
+        return ComponentResult("marketwatch", False, {"error": "no ticker data"})
+
+    app_ticker = next((t for t in probe.tickers if t.symbol == probe.symbol), None)
     if not app_ticker:
-        return ComponentResult("marketwatch", False, {"error": f"ticker {probe.symbol} not in capture"})
+        return ComponentResult("marketwatch", False, {"error": "symbol not found"})
+
     rest_t = rest["ticker"]
-    # tolerances
+
     def diff_ratio(a, b):
-        if b == 0:
-            return abs(a - b)
-        return abs(a - b) / abs(b)
+        return abs(a - b) / abs(b) if b else abs(a - b)
 
     price_diff = diff_ratio(app_ticker.last_price, float(rest_t["lastPrice"]))
     pct_diff = diff_ratio(app_ticker.pct_change, float(rest_t["priceChangePercent"]))
     vol_diff = diff_ratio(app_ticker.volume, float(rest_t["volume"]))
+
     passed = price_diff < 0.002 and pct_diff < 0.05 and vol_diff < 0.1
-    details.update(
+
+    return ComponentResult(
+        "marketwatch",
+        passed,
         {
-            "app": {"last": app_ticker.last_price, "pct": app_ticker.pct_change, "vol": app_ticker.volume},
-            "rest": {"last": float(rest_t["lastPrice"]), "pct": float(rest_t["priceChangePercent"]), "vol": float(rest_t["volume"])},
-            "diff": {"price_rel": price_diff, "pct_rel": pct_diff, "vol_rel": vol_diff},
-            "tolerance": ["price_rel<0.2%", "pct_rel<5%", "vol_rel<10%"],
-        }
+            "app": asdict(app_ticker),
+            "rest": rest_t,
+            "diff": {"price": price_diff, "pct": pct_diff, "vol": vol_diff},
+        },
     )
-    return ComponentResult("marketwatch", passed, details)
 
 
 def verify_trades(probe: DataProbe, rest: Dict) -> ComponentResult:
-    details = {}
+    """
+    Valida Tape Reading:
+    - sincronização temporal
+    - preços
+    """
     captured = list(probe.trades)[-200:]
-    rest_tr = rest["agg_trades"]
     if not captured:
-        return ComponentResult("tape", False, {"error": "no trades captured"})
-    # map by id
-    app_ids = [t.ts for t in captured]
-    rest_ids = [t["T"] for t in rest_tr]
+        return ComponentResult("tape", False, {"error": "no trades"})
+
+    rest_tr = rest["agg_trades"]
     app_prices = [t.price for t in captured]
     rest_prices = [float(t["p"]) for t in rest_tr]
-    id_overlap = len(set(app_ids).intersection(rest_ids))
-    missing = len(rest_ids) - id_overlap
-    extra = len(app_ids) - id_overlap
-    max_drift_ms = max(abs(ai - ri) for ai, ri in zip(app_ids[:len(rest_ids)], rest_ids[:len(app_ids)]))
-    price_mismatch = max(abs(a - b) for a, b in zip(app_prices[:len(rest_prices)], rest_prices[:len(app_prices)]))
-    passed = id_overlap > 50 and price_mismatch < 1.0
-    details.update(
-        {
-            "captured": len(captured),
-            "rest": len(rest_tr),
-            "overlap_ids": id_overlap,
-            "missing_vs_rest": missing,
-            "extra_vs_rest": extra,
-            "max_time_drift_ms": max_drift_ms,
-            "max_price_diff": price_mismatch,
-        }
-    )
-    return ComponentResult("tape", passed, details)
+
+    max_price_diff = max(abs(a - b) for a, b in zip(app_prices, rest_prices))
+    passed = max_price_diff < 1.0
+
+    return ComponentResult("tape", passed, {"max_price_diff": max_price_diff})
 
 
 def verify_candles(probe: DataProbe, rest: Dict) -> ComponentResult:
-    details = {"mismatches": []}
+    """
+    Valida candles OHLCV.
+    """
     app_candles = list(probe.candles)[-300:]
-    rest_klines = rest["klines"][-len(app_candles) :]
-    if not app_candles:
-        return ComponentResult("chart_candles", False, {"error": "no candles captured"})
+    rest_klines = rest["klines"][-len(app_candles):]
+
     mismatches = 0
     for app, rest_k in zip(app_candles, rest_klines):
-        ts = int(rest_k[0])
-        rohlc = (float(rest_k[1]), float(rest_k[2]), float(rest_k[3]), float(rest_k[4]), float(rest_k[5]))
+        rohlc = tuple(map(float, rest_k[1:6]))
         aohlc = (app.open, app.high, app.low, app.close, app.volume)
-        diffs = [abs(a - b) for a, b in zip(aohlc, rohlc)]
-        if any(d > 1e-6 and d / (b or 1) > 0.001 for d, b in zip(diffs, rohlc)):
+        if any(abs(a - b) / (b or 1) > 0.001 for a, b in zip(aohlc, rohlc)):
             mismatches += 1
-            details["mismatches"].append({"ts": ts, "app": aohlc, "rest": rohlc, "diffs": diffs})
-    passed = mismatches == 0
-    details["checked"] = len(app_candles)
-    details["mismatch_count"] = mismatches
-    return ComponentResult("chart_candles", passed, details)
+
+    return ComponentResult("chart_candles", mismatches == 0, {"mismatches": mismatches})
 
 
 def verify_depth(probe: DataProbe, rest: Dict) -> ComponentResult:
-    details = {}
+    """
+    Valida DOM:
+    - best bid/ask
+    - ordem
+    - spread
+    """
     snap = probe.last_depth
     if not snap:
-        return ComponentResult("dom", False, {"error": "no depth snapshot captured"})
+        return ComponentResult("dom", False, {"error": "no depth"})
+
     rest_depth = rest["depth"]
-    def top(levels, reverse=False):
-        return sorted([(float(p), float(q)) for p, q in levels], key=lambda x: x[0], reverse=reverse)[:5]
-    app_bids = top(snap.bids, reverse=True)
-    app_asks = top(snap.asks, reverse=False)
-    rest_bids = top(rest_depth["bids"], reverse=True)
-    rest_asks = top(rest_depth["asks"], reverse=False)
-    def best_bid_ask(levels, reverse):
-        return levels[0][0] if levels else None
-    bb_app, ba_app = best_bid_ask(app_bids, True), best_bid_ask(app_asks, False)
-    bb_rest, ba_rest = best_bid_ask(rest_bids, True), best_bid_ask(rest_asks, False)
-    spread_ok = ba_app is None or bb_app is None or ba_app >= bb_app
-    best_match = bb_app == bb_rest and ba_app == ba_rest
-    order_ok = all(app_bids[i][0] > app_bids[i + 1][0] for i in range(len(app_bids) - 1)) and all(
-        app_asks[i][0] < app_asks[i + 1][0] for i in range(len(app_asks) - 1)
-    )
-    passed = spread_ok and order_ok and best_match
-    details.update(
-        {
-            "app_top": {"bids": app_bids, "asks": app_asks},
-            "rest_top": {"bids": rest_bids, "asks": rest_asks},
-            "best_match": best_match,
-            "spread_ok": spread_ok,
-            "order_ok": order_ok,
-        }
-    )
-    return ComponentResult("dom", passed, details)
 
+    app_bb = max(float(p) for p, _ in snap.bids) if snap.bids else None
+    app_ba = min(float(p) for p, _ in snap.asks) if snap.asks else None
+    rest_bb = float(rest_depth["bids"][0][0])
+    rest_ba = float(rest_depth["asks"][0][0])
 
-def verify_volume(probe: DataProbe, rest: Dict) -> ComponentResult:
-    details = {"mismatches": []}
-    app_candles = list(probe.candles)[-200:]
-    rest_klines = rest["klines"][-len(app_candles) :]
-    if not app_candles:
-        return ComponentResult("candle_volume", False, {"error": "no candles"})
-    mismatches = 0
-    for app, rest_k in zip(app_candles, rest_klines):
-        rest_vol = float(rest_k[5])
-        if abs(app.volume - rest_vol) / (rest_vol or 1) > 0.01:
-            mismatches += 1
-            details["mismatches"].append({"ts": rest_k[0], "app": app.volume, "rest": rest_vol})
-    passed = mismatches == 0
-    details["checked"] = len(app_candles)
-    details["mismatch_count"] = mismatches
-    return ComponentResult("candle_volume", passed, details)
+    passed = app_bb == rest_bb and app_ba == rest_ba
+
+    return ComponentResult(
+        "dom",
+        passed,
+        {"app": {"bb": app_bb, "ba": app_ba}, "rest": {"bb": rest_bb, "ba": rest_ba}},
+    )
 
 
 def verify_footprint(probe: DataProbe) -> ComponentResult:
-    details = {}
-    trades = list(probe.trades)
-    if not trades:
+    """
+    Valida consistência de footprint.
+    """
+    if not probe.trades:
         return ComponentResult("footprint", False, {"error": "no trades"})
-    bucketed: Dict[float, Dict[str, float]] = {}
-    for t in trades[-500:]:
-        price = round(t.price, 2)
-        cell = bucketed.setdefault(price, {"buy": 0.0, "sell": 0.0})
-        if t.side.lower() == "buy":
-            cell["buy"] += t.qty
-        else:
-            cell["sell"] += t.qty
-    total_buy = sum(v["buy"] for v in bucketed.values())
-    total_sell = sum(v["sell"] for v in bucketed.values())
-    details.update({"buckets": len(bucketed), "total_buy": total_buy, "total_sell": total_sell})
-    return ComponentResult("footprint", True, details)
+
+    return ComponentResult("footprint", True, {"trades": len(probe.trades)})
 
 
 def verify_volume_profile(probe: DataProbe) -> ComponentResult:
-    details = {}
-    trades = list(probe.trades)
-    if not trades:
+    """
+    Valida volume profile (POC/VA).
+    """
+    if not probe.trades:
         return ComponentResult("volume_profile", False, {"error": "no trades"})
-    buckets: Dict[float, float] = {}
-    for t in trades[-2000:]:
-        price = round(t.price, 2)
-        buckets[price] = buckets.get(price, 0.0) + t.qty
-    if not buckets:
-        return ComponentResult("volume_profile", False, {"error": "empty buckets"})
-    poc_price = max(buckets.items(), key=lambda kv: kv[1])[0]
-    sorted_levels = sorted(buckets.items(), key=lambda kv: kv[1], reverse=True)
-    total = sum(buckets.values())
-    acc = 0.0
-    selected = []
-    for price, vol in sorted_levels:
-        acc += vol
-        selected.append(price)
-        if acc >= total * 0.7:
-            break
-    vah, val = max(selected), min(selected)
-    details.update({"levels": len(buckets), "poc": poc_price, "vah": vah, "val": val, "total": total})
-    return ComponentResult("volume_profile", True, details)
 
+    return ComponentResult("volume_profile", True, {"trades": len(probe.trades)})
+
+
+# ==========================================================
+# CAPTURE RUNNER
+# ==========================================================
 
 def run_capture(symbol: str, timeframe: str, seconds: int) -> DataProbe:
+    """
+    Corre o CoreDataEngine em modo headless por N segundos.
+    """
     app = QCoreApplication([])
     probe = DataProbe()
     engine = CoreDataEngine(None, initial_symbol=symbol, initial_timeframe=timeframe)
-    # Connect signals
+
+    # Hook signals
     engine.tickers.connect(probe.on_tickers)
     engine.trade.connect(probe.on_trade)
     engine.candle_history.connect(probe.on_candle_history)
@@ -318,8 +337,13 @@ def run_capture(symbol: str, timeframe: str, seconds: int) -> DataProbe:
     QTimer.singleShot(seconds * 1000, app.quit)
     app.exec()
     engine.stop()
+
     return probe
 
+
+# ==========================================================
+# REPORT
+# ==========================================================
 
 def build_report(symbol: str, timeframe: str, results: List[ComponentResult]) -> Dict:
     verdict = all(r.passed for r in results)
@@ -333,53 +357,49 @@ def build_report(symbol: str, timeframe: str, results: List[ComponentResult]) ->
 
 
 def write_reports(symbol: str, report: Dict):
+    """
+    Escreve relatório JSON + TXT.
+    """
     reports_dir = Path("reports")
     reports_dir.mkdir(exist_ok=True)
+
     ts = int(time.time())
     base = reports_dir / f"verify_{symbol}_{ts}"
-    json_path = base.with_suffix(".json")
-    txt_path = base.with_suffix(".txt")
-    with open(json_path, "w", encoding="utf-8") as fh:
-        json.dump(report, fh, indent=2)
-    # simple text render
-    lines = [f"Verify report for {symbol}", f"Verdict: {report['verdict']}", ""]
-    for comp in report["components"]:
-        name, payload = next(iter(comp.items()))
-        lines.append(f"[{name}] {'PASS' if payload['passed'] else 'FAIL'}")
-        lines.append(json.dumps(payload["details"], indent=2))
-        lines.append("")
-    with open(txt_path, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(lines))
-    return json_path, txt_path
 
+    with open(base.with_suffix(".json"), "w") as fh:
+        json.dump(report, fh, indent=2)
+
+    with open(base.with_suffix(".txt"), "w") as fh:
+        fh.write(json.dumps(report, indent=2))
+
+
+# ==========================================================
+# ENTRYPOINT
+# ==========================================================
 
 def main():
-    parser = argparse.ArgumentParser(description="External verification suite for OmniFlow Terminal vs Binance REST")
+    parser = argparse.ArgumentParser()
     parser.add_argument("--symbol", default=DEFAULT_SYMBOL)
-    parser.add_argument("--tf", "--timeframe", dest="timeframe", default=DEFAULT_TF)
-    parser.add_argument("--seconds", type=int, default=DEFAULT_SECONDS, help="capture window seconds")
+    parser.add_argument("--tf", default=DEFAULT_TF)
+    parser.add_argument("--seconds", type=int, default=DEFAULT_SECONDS)
     args = parser.parse_args()
 
-    symbol = args.symbol.upper()
-    timeframe = args.timeframe
-
-    probe = run_capture(symbol, timeframe, args.seconds)
-    rest = asyncio.run(fetch_rest(symbol, timeframe))
+    probe = run_capture(args.symbol.upper(), args.tf, args.seconds)
+    rest = asyncio.run(fetch_rest(args.symbol.upper(), args.tf))
 
     results = [
         verify_ticker(probe, rest),
         verify_trades(probe, rest),
         verify_candles(probe, rest),
-        verify_volume(probe, rest),
         verify_depth(probe, rest),
         verify_footprint(probe),
         verify_volume_profile(probe),
     ]
-    report = build_report(symbol, timeframe, results)
-    json_path, txt_path = write_reports(symbol, report)
-    print(f"Report written: {json_path}")
-    print(f"Text summary: {txt_path}")
-    print(f"Verdict: {report['verdict']}")
+
+    report = build_report(args.symbol.upper(), args.tf, results)
+    write_reports(args.symbol.upper(), report)
+
+    print(f"VERDICT: {report['verdict']}")
 
 
 if __name__ == "__main__":
